@@ -5,20 +5,20 @@ from aiohttp import web
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
-# ---------------- CONFIGURATION (Env Vars) ----------------
-# Render-ൽ കൊടുക്കേണ്ട പേരുകൾ:
-BOT1_TOKEN = os.getenv('8127783555:AAE7dIqBVSd_EW2p-QL_6KEVVvvS4KLH3fc')      # (Group Delete Bot Token)
-BOT2_TOKEN = os.getenv('8489791050:AAE_SnRSbqfDAn0JSd_sHBk9df_jHbQ1cas')      # (DM Poster Bot Token)
-OWNER_ID = str(os.getenv('7639633018'))     # (Your ID - String)
-TARGET_GROUP_ID = int(os.getenv('-1003621584117')) # (Bot പ്രവർത്തിക്കേണ്ട ഗ്രൂപ്പ് ID)
-PORT = int(os.getenv('PORT', 8080))       # (Render Port)
-LOOP_TIME = 600                           # (10 Minutes)
-# ----------------------------------------------------------
+# ---------------- CONFIGURATION (Set Direct Strings) ----------------
+# ഇവിടെ os.getenv മാറ്റാൻ ശ്രദ്ധിക്കുക. ടോക്കണുകൾ നേരിട്ട് നൽകുന്നു.
+BOT1_TOKEN = "8127783555:AAE7dIqBVSd_EW2p-QL_6KEVVvvS4KLH3fc"   # (Group Delete Bot Token)
+BOT2_TOKEN = "8489791050:AAE_SnRSbqfDAn0JSd_sHBk9df_jHbQ1cas"   # (DM Poster Bot Token)
+OWNER_ID = "7639633018"       # (Your ID - String)
+GROUP_ID = -1003621584117     # (Bot പ്രവർത്തിക്കേണ്ട ഗ്രൂപ്പ് ID)
+LOOP_TIME = 600               # (10 Minutes)
+PORT = int(os.environ.get("PORT", 8080)) # Render Port
+# ------------------------------------------------------------------
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # ==============================================================================
-#                               BOT 1 LOGIC (Group Cleaner)
+#                                BOT 1 LOGIC (Group Cleaner)
 # ==============================================================================
 
 # നിരോധിത വാക്കുകൾ
@@ -53,8 +53,8 @@ async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = message.text.lower()
 
     # --- SECURITY CHECK: വേറെ ഗ്രൂപ്പുകളിൽ വർക്ക് ചെയ്യാതിരിക്കാൻ ---
-    if chat_id != TARGET_GROUP_ID:
-        return # നമ്മുടെ ഗ്രൂപ്പ് അല്ലെങ്കിൽ ഒന്നും ചെയ്യില്ല
+    if chat_id != GROUP_ID:  # Fixed Variable Name
+        return 
     # ----------------------------------------------------------
 
     # അഡ്മിൻ ആണെങ്കിൽ ഡിലീറ്റ് ചെയ്യേണ്ട
@@ -76,7 +76,7 @@ async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
             break
 
 # ==============================================================================
-#                               BOT 2 LOGIC (DM Poster & Loop)
+#                                BOT 2 LOGIC (DM Poster & Loop)
 # ==============================================================================
 
 current_loop_task = None
@@ -133,16 +133,16 @@ async def handle_dm_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_post(context, original_msg, content, markup):
     if original_msg.photo:
-        return await context.bot.send_photo(chat_id=TARGET_GROUP_ID, photo=original_msg.photo[-1].file_id, caption=content, reply_markup=markup)
+        return await context.bot.send_photo(chat_id=GROUP_ID, photo=original_msg.photo[-1].file_id, caption=content, reply_markup=markup)
     else:
-        return await context.bot.send_message(chat_id=TARGET_GROUP_ID, text=content, reply_markup=markup)
+        return await context.bot.send_message(chat_id=GROUP_ID, text=content, reply_markup=markup)
 
 async def run_loop(context, original_msg, content, markup):
     global last_loop_message_id
     while True:
         try:
             if last_loop_message_id:
-                try: await context.bot.delete_message(chat_id=TARGET_GROUP_ID, message_id=last_loop_message_id)
+                try: await context.bot.delete_message(chat_id=GROUP_ID, message_id=last_loop_message_id)
                 except: pass
             sent_msg = await send_post(context, original_msg, content, markup)
             last_loop_message_id = sent_msg.message_id
@@ -151,24 +151,22 @@ async def run_loop(context, original_msg, content, markup):
         await asyncio.sleep(LOOP_TIME)
 
 # ==============================================================================
-#                               RENDER SERVER & MAIN
+#                                RENDER SERVER & MAIN
 # ==============================================================================
 
 async def health_check(request):
     return web.Response(text="Both Bots are Running!")
 
-async def start_web_server():
+async def main():
+    # 1. വെബ് സെർവർ സ്റ്റാർട്ട് ചെയ്യുന്നു (Background Task)
     app = web.Application()
     app.router.add_get('/', health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
+    print(f"🌍 Web Server running on port {PORT}")
 
-async def main():
-    # 1. വെബ് സെർവർ സ്റ്റാർട്ട് ചെയ്യുന്നു
-    await start_web_server()
-    
     # 2. Bot 1 (Group Cleaner) സെറ്റപ്പ്
     app1 = ApplicationBuilder().token(BOT1_TOKEN).build()
     app1.add_handler(CommandHandler('start', bot1_start))
@@ -189,8 +187,11 @@ async def main():
     await app2.updater.start_polling()
     print("✅ Bot 2 (DM Poster) Started")
 
-    # നിർത്താതെ പ്രവർത്തിക്കാൻ
+    # നിർത്താതെ പ്രവർത്തിക്കാൻ (Keep Alive)
     await asyncio.Event().wait()
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
