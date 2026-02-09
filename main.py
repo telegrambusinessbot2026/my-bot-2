@@ -10,7 +10,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 BOT1_TOKEN = os.getenv('8127783555:AAE7dIqBVSd_EW2p-QL_6KEVVvvS4KLH3fc')      # (Group Delete Bot Token)
 BOT2_TOKEN = os.getenv('8489791050:AAE_SnRSbqfDAn0JSd_sHBk9df_jHbQ1cas')      # (DM Poster Bot Token)
 OWNER_ID = str(os.getenv('7639633018'))     # (Your ID - String)
-TARGET_GROUP_ID = int(os.getenv('-1003621584117')) # (Bot 2 Post ചെയ്യേണ്ട ഗ്രൂപ്പ് ID)
+TARGET_GROUP_ID = int(os.getenv('-1003621584117')) # (Bot പ്രവർത്തിക്കേണ്ട ഗ്രൂപ്പ് ID)
 PORT = int(os.getenv('PORT', 8080))       # (Render Port)
 LOOP_TIME = 600                           # (10 Minutes)
 # ----------------------------------------------------------
@@ -29,6 +29,7 @@ async def bot1_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def add_restricted_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
+    # ഓണർക്ക് മാത്രമേ വാക്കുകൾ ആഡ് ചെയ്യാൻ പറ്റൂ
     if user_id == OWNER_ID:
         if context.args:
             new_word = context.args[0].lower()
@@ -39,6 +40,8 @@ async def add_restricted_word(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await update.message.reply_text(f"'{new_word}' is already in the list.")
         else:
             await update.message.reply_text("Please specify a word.")
+    else:
+        await update.message.reply_text("⚠️ You are not authorized.")
 
 async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -48,6 +51,11 @@ async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
     text = message.text.lower()
+
+    # --- SECURITY CHECK: വേറെ ഗ്രൂപ്പുകളിൽ വർക്ക് ചെയ്യാതിരിക്കാൻ ---
+    if chat_id != TARGET_GROUP_ID:
+        return # നമ്മുടെ ഗ്രൂപ്പ് അല്ലെങ്കിൽ ഒന്നും ചെയ്യില്ല
+    # ----------------------------------------------------------
 
     # അഡ്മിൻ ആണെങ്കിൽ ഡിലീറ്റ് ചെയ്യേണ്ട
     if update.effective_chat.type in ['group', 'supergroup']:
@@ -63,8 +71,6 @@ async def delete_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if word in text:
             try:
                 await context.bot.delete_message(chat_id, message.message_id)
-                # (Optional) മുന്നറിയിപ്പ് കൊടുക്കണമെങ്കിൽ താഴെയുള്ള വരി അൺ-കമന്റ് ചെയ്യുക
-                # await context.bot.send_message(chat_id, f"{user.first_name}, ആ വാക്ക് ഗ്രൂപ്പിൽ ഉപയോഗിക്കാൻ പാടില്ല!")
             except Exception as e:
                 print(f"Error deleting: {e}")
             break
